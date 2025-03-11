@@ -1,11 +1,19 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
-module Aztecs.Hierarchy where
+module Aztecs.Hierarchy
+  ( -- * Components
+    Parent (..),
+    Children (..),
+
+    -- * Systems
+    updateHierarchy,
+
+    -- * Internal
+    ParentState (..),
+    ChildState (..),
+  )
+where
 
 import Aztecs.ECS
 import qualified Aztecs.ECS.Access as A
@@ -13,30 +21,25 @@ import Control.Monad
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+-- | Parent component.
 newtype Parent = Parent {unParent :: EntityID}
   deriving (Eq, Ord, Show)
 
 instance Component Parent
 
-newtype ParentState = ParentState {unParentState :: EntityID}
-  deriving (Show)
-
-instance Component ParentState
-
+-- | Children component.
 newtype Children = Children {unChildren :: Set EntityID}
   deriving (Eq, Ord, Show, Semigroup, Monoid)
 
 instance Component Children
 
-newtype ChildState = ChildState {unChildState :: Set EntityID}
-  deriving (Show)
-
-instance Component ChildState
-
-update :: System (Access ())
-update = do
-  parents <- readQuery $ (,,) <$> entity <*> fetch @_ @Parent <*> fetchMaybe @_ @ParentState
-  children <- readQuery $ (,,) <$> entity <*> fetch @_ @Children <*> fetchMaybe @_ @ChildState
+-- | System to update and maintain hierarchies of parents and children.
+--
+-- @since 0.3
+updateHierarchy :: System (Access ())
+updateHierarchy = do
+  parents <- readQuery $ (,,) <$> entity <*> fetch <*> fetchMaybe
+  children <- readQuery $ (,,) <$> entity <*> fetch <*> fetchMaybe
   return
     ( do
         mapM_
@@ -76,3 +79,13 @@ update = do
           )
           children
     )
+
+newtype ParentState = ParentState {unParentState :: EntityID}
+  deriving (Show)
+
+instance Component ParentState
+
+newtype ChildState = ChildState {unChildState :: Set EntityID}
+  deriving (Show)
+
+instance Component ChildState
