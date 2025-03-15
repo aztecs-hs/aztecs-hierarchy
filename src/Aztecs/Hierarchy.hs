@@ -117,7 +117,7 @@ data Hierarchy a = Node
     -- @since 0.3
     nodeChildren :: [Hierarchy a]
   }
-  deriving (Functor)
+  deriving (Show, Functor)
 
 -- | @since 0.9
 instance Foldable Hierarchy where
@@ -165,9 +165,9 @@ hierarchy ::
 hierarchy e q = do
   children <- readQuery $ do
     e' <- entity
-    cs <- fetch
+    cs <- fetchMaybe
     a <- q
-    return (e', (unChildren cs, a))
+    return (e', (cs, a))
   let childMap = Map.fromList children
   return $ hierarchy' e childMap
 
@@ -183,27 +183,35 @@ hierarchies q = do
     readQuery
       ( do
           e <- entity
-          cs <- fetch
+          cs <- fetchMaybe
           a <- q
-          return (e, (unChildren cs, a))
+          return (e, (cs, a))
       )
   let childMap = Map.fromList children
-  roots <- query $ entity <* with @_ @Children <* without @_ @Parent
+  roots <- readQuery $ entity <* with @_ @Children <* without @_ @Parent
   return $ mapMaybe (`hierarchy'` childMap) roots
 
 -- | Build a hierarchy of parents to children.
 --
 -- @since 0.3
-hierarchy' :: EntityID -> Map EntityID (Set EntityID, a) -> Maybe (Hierarchy a)
+hierarchy' :: EntityID -> Map EntityID (Maybe Children, a) -> Maybe (Hierarchy a)
 hierarchy' e childMap = case Map.lookup e childMap of
-  Just (cs, a) ->
-    let bs = mapMaybe (`hierarchy'` childMap) (Set.toList cs)
-     in Just
-          Node
-            { nodeEntityId = e,
-              nodeEntity = a,
-              nodeChildren = bs
-            }
+  Just (cs, a) -> case cs of
+    Just (Children cs') ->
+      let bs = mapMaybe (`hierarchy'` childMap) (Set.toList cs')
+       in Just
+            Node
+              { nodeEntityId = e,
+                nodeEntity = a,
+                nodeChildren = bs
+              }
+    Nothing ->
+      Just
+        Node
+          { nodeEntityId = e,
+            nodeEntity = a,
+            nodeChildren = []
+          }
   Nothing -> Nothing
 
 newtype ParentState = ParentState {unParentState :: EntityID}
