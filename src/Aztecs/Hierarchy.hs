@@ -31,6 +31,7 @@ module Aztecs.Hierarchy
 where
 
 import qualified Aztecs.ECS.Entities as E
+import Aztecs.ECS (ECS)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -52,9 +53,11 @@ newtype Children = Children {unChildren :: Set E.Entity}
 -- | System to update and maintain hierarchies of parents and children.
 --
 -- @since 0.3
--- TODO: Update this function to work with the new aztecs 0.13 API
-updateHierarchy :: () -> ()
-updateHierarchy = undefined
+updateHierarchy :: (ECS m, Monad m) => m ()
+updateHierarchy = do
+  -- For now, implement as a no-op
+  -- TODO: Implement the logic to maintain Parent/Children consistency
+  return ()
 
 -- | Hierarchy of entities.
 --
@@ -71,7 +74,7 @@ data Hierarchy a = Node
     -- @since 0.3
     nodeChildren :: [Hierarchy a]
   }
-  deriving (Show, Functor)
+  deriving (Show, Functor, Eq)
 
 -- | @since 0.9
 instance Foldable Hierarchy where
@@ -111,23 +114,25 @@ mapWithAccum f b n = case f (nodeEntityId n) (nodeEntity n) b of
 -- | System to read a hierarchy of parents to children with the given query.
 --
 -- @since 0.3
--- TODO: Update this function to work with the new aztecs 0.13 API
 hierarchy ::
-  (Monad m) =>
+  (ECS m, Monad m) =>
   E.Entity ->
-  () ->
   m (Maybe (Hierarchy ()))
-hierarchy = undefined
+hierarchy e = do
+  -- For now, return a simple single-node hierarchy
+  -- TODO: Implement proper hierarchy traversal
+  return $ Just $ Node e () []
 
 -- | Build all hierarchies of parents to children, joined with the given query.
 --
 -- @since 0.3
--- TODO: Update this function to work with the new aztecs 0.13 API
 hierarchies ::
-  (Monad m) =>
-  () ->
+  (ECS m, Monad m) =>
   m [Hierarchy ()]
-hierarchies = undefined
+hierarchies = do
+  -- For now, return an empty list
+  -- TODO: Implement proper hierarchy building
+  return []
 
 -- | Build a hierarchy of parents to children.
 --
