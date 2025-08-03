@@ -30,7 +30,7 @@ library
     ghc-options:      -Wall
     build-depends:
         base >=4.6 && <5,
-        aztecs >=0.12 && <0.13,
+        aztecs >=0.13 && <0.14,
         containers >=0.6 && <0.9,
         mtl >=2 && <3
 
@@ -42,7 +42,7 @@ test-suite aztecs-hierarchy-test
     ghc-options:      -Wall
     build-depends:
         base >=4.6 && <5,
-        aztecs,
+        aztecs >=0.13 && <0.14,
         aztecs-hierarchy,
         containers >=0.6,
         hspec >=2,
