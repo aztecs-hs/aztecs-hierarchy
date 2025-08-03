@@ -30,9 +30,7 @@ module Aztecs.Hierarchy
   )
 where
 
-import Aztecs.ECS
-import qualified Aztecs.ECS.Access as A
-import Control.Monad
+import qualified Aztecs.ECS.Entities as E
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -42,65 +40,21 @@ import qualified Data.Set as Set
 -- | Parent component.
 --
 -- @since 0.3
-newtype Parent = Parent {unParent :: EntityID}
+newtype Parent = Parent {unParent :: E.Entity}
   deriving (Eq, Ord, Show)
-
-instance Component Parent
 
 -- | Children component.
 --
 -- @since 0.3
-newtype Children = Children {unChildren :: Set EntityID}
+newtype Children = Children {unChildren :: Set E.Entity}
   deriving (Eq, Ord, Show, Semigroup, Monoid)
-
-instance Component Children
 
 -- | System to update and maintain hierarchies of parents and children.
 --
 -- @since 0.3
-updateHierarchy :: System (Access ())
-updateHierarchy = do
-  parents <- readQuery $ (,,) <$> entity <*> fetch <*> fetchMaybe
-  children <- readQuery $ (,,) <$> entity <*> fetch <*> fetchMaybe
-  return
-    ( do
-        mapM_
-          ( \(e, Parent parent, maybeParentState) -> case maybeParentState of
-              Just (ParentState parentState) -> do
-                when (parent /= parentState) $ do
-                  A.insert parent . bundle $ ParentState parent
-
-                  -- Remove this entity from the previous parent's children.
-                  maybeLastChildren <- A.lookup parentState
-                  let lastChildren = maybe mempty unChildren maybeLastChildren
-                  let lastChildren' = Set.filter (/= e) lastChildren
-                  A.insert parentState . bundle . Children $ lastChildren'
-
-                  -- Add this entity to the new parent's children.
-                  maybeChildren <- A.lookup parent
-                  let parentChildren = maybe mempty unChildren maybeChildren
-                  A.insert parent . bundle . Children $ Set.insert e parentChildren
-              Nothing -> do
-                _ <- A.spawn . bundle $ ParentState parent
-                maybeChildren <- A.lookup parent
-                let parentChildren = maybe mempty unChildren maybeChildren
-                A.insert parent . bundle . Children $ Set.insert e parentChildren
-          )
-          parents
-        mapM_
-          ( \(e, Children cs, maybeChildState) -> case maybeChildState of
-              Just (ChildState childState) -> do
-                when (cs /= childState) $ do
-                  A.insert e . bundle $ ChildState cs
-                  let added = Set.difference cs childState
-                  -- TODO removed = Set.difference childState children
-                  mapM_ (\e' -> A.insert e' . bundle . Parent $ e) added
-              Nothing -> do
-                A.insert e . bundle $ ChildState cs
-                mapM_ (\e' -> A.insert e' . bundle . Parent $ e) cs
-          )
-          children
-    )
+-- TODO: Update this function to work with the new aztecs 0.13 API
+updateHierarchy :: () -> ()
+updateHierarchy = undefined
 
 -- | Hierarchy of entities.
 --
@@ -109,7 +63,7 @@ data Hierarchy a = Node
   { -- | Entity ID.
     --
     -- @since 0.3
-    nodeEntityId :: EntityID,
+    nodeEntityId :: E.Entity,
     -- | Entity components.
     nodeEntity :: a,
     -- | Child nodes.
@@ -131,70 +85,54 @@ instance Traversable Hierarchy where
 -- | Convert a hierarchy to a list of entity IDs and components.
 --
 -- @since 0.3
-toList :: Hierarchy a -> [(EntityID, a)]
+toList :: Hierarchy a -> [(E.Entity, a)]
 toList n = (nodeEntityId n, nodeEntity n) : concatMap toList (nodeChildren n)
 
 -- | Fold a hierarchy with a function that takes the entity ID, entity, and accumulator.
 --
 -- @since 0.3
-foldWithKey :: (EntityID -> a -> b -> b) -> Hierarchy a -> b -> b
+foldWithKey :: (E.Entity -> a -> b -> b) -> Hierarchy a -> b -> b
 foldWithKey f n b = f (nodeEntityId n) (nodeEntity n) (foldr (foldWithKey f) b (nodeChildren n))
 
 -- | Map a hierarchy with a function that takes the entity ID and entity.
 --
 -- @since 0.3
-mapWithKey :: (EntityID -> a -> b) -> Hierarchy a -> Hierarchy b
+mapWithKey :: (E.Entity -> a -> b) -> Hierarchy a -> Hierarchy b
 mapWithKey f n =
   Node (nodeEntityId n) (f (nodeEntityId n) (nodeEntity n)) (map (mapWithKey f) (nodeChildren n))
 
 -- | Map a hierarchy with a function that takes the entity ID, entity, and accumulator.
 --
 -- @since 0.3
-mapWithAccum :: (EntityID -> a -> b -> (c, b)) -> b -> Hierarchy a -> Hierarchy c
+mapWithAccum :: (E.Entity -> a -> b -> (c, b)) -> b -> Hierarchy a -> Hierarchy c
 mapWithAccum f b n = case f (nodeEntityId n) (nodeEntity n) b of
   (c, b') -> Node (nodeEntityId n) c (map (mapWithAccum f b') (nodeChildren n))
 
 -- | System to read a hierarchy of parents to children with the given query.
 --
 -- @since 0.3
+-- TODO: Update this function to work with the new aztecs 0.13 API
 hierarchy ::
   (Monad m) =>
-  EntityID ->
-  QueryT m a ->
-  SystemT m (Maybe (Hierarchy a))
-hierarchy e q = do
-  children <- readQuery $ do
-    e' <- entity
-    cs <- fetchMaybe
-    a <- q
-    return (e', (cs, a))
-  let childMap = Map.fromList children
-  return $ hierarchy' e childMap
+  E.Entity ->
+  () ->
+  m (Maybe (Hierarchy ()))
+hierarchy = undefined
 
 -- | Build all hierarchies of parents to children, joined with the given query.
 --
 -- @since 0.3
+-- TODO: Update this function to work with the new aztecs 0.13 API
 hierarchies ::
   (Monad m) =>
-  QueryT m a ->
-  SystemT m [Hierarchy a]
-hierarchies q = do
-  children <-
-    readQuery
-      ( do
-          e <- entity
-          cs <- fetchMaybe
-          a <- q
-          return (e, (cs, a))
-      )
-  let childMap = Map.fromList children
-  roots <- readQuery $ entity <* with @_ @Children <* without @_ @Parent
-  return $ mapMaybe (`hierarchy'` childMap) roots
+  () ->
+  m [Hierarchy ()]
+hierarchies = undefined
 
 -- | Build a hierarchy of parents to children.
 --
 -- @since 0.3
-hierarchy' :: EntityID -> Map EntityID (Maybe Children, a) -> Maybe (Hierarchy a)
+hierarchy' :: E.Entity -> Map E.Entity (Maybe Children, a) -> Maybe (Hierarchy a)
 hierarchy' e childMap = case Map.lookup e childMap of
   Just (cs, a) -> case cs of
     Just (Children cs') ->
@@ -214,12 +152,8 @@ hierarchy' e childMap = case Map.lookup e childMap of
           }
   Nothing -> Nothing
 
-newtype ParentState = ParentState {unParentState :: EntityID}
+newtype ParentState = ParentState {unParentState :: E.Entity}
   deriving (Show)
 
-instance Component ParentState
-
-newtype ChildState = ChildState {unChildState :: Set EntityID}
+newtype ChildState = ChildState {unChildState :: Set E.Entity}
   deriving (Show)
-
-instance Component ChildState
